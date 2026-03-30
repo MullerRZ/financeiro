@@ -304,7 +304,23 @@ html, body {
   transition: all var(--transition); flex-shrink: 0;
 }
 .tx-delete:hover { background: rgba(233,69,96,0.15); color: var(--expense); }
-
+// ===== DELETE =====
+function deleteTx(id) {
+  const tx = transactions.find(t => t.id === id);
+  if (!tx) return;
+  const cat = getCategoryObj(tx.category);
+  showModal(
+    'Excluir Transacao',
+    `Deseja excluir "${cat.name} - ${formatCurrency(tx.value)}" de ${formatDate(tx.date)}?`,
+    () => {
+      deleteTransaction(id).then(() => {
+        showToast('Transacao excluida');
+      }).catch(err => {
+        showToast('Erro ao excluir: ' + err.message, 'error');
+      });
+    }
+  );
+}
 /* Charts */
 .charts-grid { display: flex; flex-direction: column; gap: 24px; }
 .chart-container { position: relative; width: 100%; }
