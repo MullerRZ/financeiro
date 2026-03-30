@@ -390,6 +390,26 @@ html, body {
 }
 .section-header button:hover { text-decoration: underline; }
 
+/* ---- Budgets (Limites) ---- */
+.budget-item {
+  background: var(--bg-card); padding: 16px; 
+  border-radius: var(--radius-sm); border: 1px solid var(--border); 
+  margin-bottom: 12px; transition: transform var(--transition);
+}
+.budget-item:hover { transform: translateY(-2px); }
+.budget-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.95rem; }
+.budget-bar-bg { width: 100%; height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+.budget-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease, background-color 0.4s ease; }
+.bg-green { background-color: var(--income); }
+.bg-yellow { background-color: #f39c12; }
+.bg-red { background-color: var(--expense); }
+
+.budget-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 24px; }
+.budget-form .form-group { margin-bottom: 0; flex: 1; min-width: 140px; }
+@media (max-width: 768px) {
+  .budget-form { flex-direction: column; align-items: stretch; }
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .sidebar { display: none; }
@@ -408,7 +428,6 @@ html, body {
 </head>
 <body>
 
-<!-- Login Screen -->
 <div class="login-screen" id="login-screen">
   <div class="login-box">
     <div class="login-logo">💰</div>
@@ -423,7 +442,6 @@ html, body {
 </div>
 
 <div class="app" id="app">
-  <!-- Sidebar (desktop) -->
   <aside class="sidebar">
     <div class="sidebar-logo">💰 Financeiro</div>
     <div class="sidebar-user" id="sidebar-user" style="display:none">
@@ -435,13 +453,12 @@ html, body {
       <button data-page="transactions"><span class="nav-icon">📋</span> Transacoes</button>
       <button data-page="add"><span class="nav-icon">➕</span> Adicionar</button>
       <button data-page="charts"><span class="nav-icon">📊</span> Graficos</button>
+      <button data-page="budgets"><span class="nav-icon">🎯</span> Limites</button>
       <button data-page="settings"><span class="nav-icon">⚙️</span> Configuracoes</button>
     </nav>
   </aside>
 
-  <!-- Main content -->
   <div class="main">
-    <!-- Dashboard -->
     <div id="page-dashboard" class="page active">
       <h1 class="page-title">Inicio <span class="sync-badge" id="sync-badge">Sincronizado</span></h1>
       <div class="summary-grid">
@@ -457,6 +474,14 @@ html, body {
           <div class="label">📉 Despesas (mes)</div>
           <div class="value" id="val-expense">R$ 0,00</div>
         </div>
+        <div class="summary-card balance">
+          <div class="label">🍔 Saldo VR</div>
+          <div class="value" id="val-vr">R$ 0,00</div>
+        </div>
+        <div class="summary-card balance">
+          <div class="label">🛒 Saldo VA</div>
+          <div class="value" id="val-va">R$ 0,00</div>
+        </div>
       </div>
       <div class="section-header">
         <h3>Ultimas Transacoes</h3>
@@ -465,7 +490,6 @@ html, body {
       <div id="recent-tx" class="tx-list"></div>
     </div>
 
-    <!-- Transactions -->
     <div id="page-transactions" class="page">
       <h1 class="page-title">Transacoes</h1>
       <div class="filters">
@@ -480,11 +504,17 @@ html, body {
         <select id="filter-category" onchange="renderTransactions()">
           <option value="">Todas as categorias</option>
         </select>
+        <select id="filter-account" onchange="renderTransactions()">
+          <option value="">Todas as contas</option>
+          <option value="corrente">Conta Corrente</option>
+          <option value="vr">Vale Refeição (VR)</option>
+          <option value="va">Vale Alimentação (VA)</option>
+          <option value="dinheiro">Dinheiro Físico</option>
+        </select>
       </div>
       <div id="tx-list" class="tx-list"></div>
     </div>
 
-    <!-- Add Transaction -->
     <div id="page-add" class="page">
       <h1 class="page-title">Adicionar Transacao</h1>
       <div class="card">
@@ -498,6 +528,15 @@ html, body {
         <div class="form-group">
           <label for="tx-value">Valor (R$)</label>
           <input type="text" id="tx-value" inputmode="decimal" placeholder="0,00" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="tx-account">Conta</label>
+          <select id="tx-account">
+            <option value="corrente">Conta Corrente</option>
+            <option value="vr">Vale Refeição (VR)</option>
+            <option value="va">Vale Alimentação (VA)</option>
+            <option value="dinheiro">Dinheiro Físico</option>
+          </select>
         </div>
         <div class="form-group">
           <label for="tx-category">Categoria</label>
@@ -515,7 +554,6 @@ html, body {
       </div>
     </div>
 
-    <!-- Charts -->
     <div id="page-charts" class="page">
       <h1 class="page-title">Graficos</h1>
       <div class="charts-grid">
@@ -540,7 +578,24 @@ html, body {
       </div>
     </div>
 
-    <!-- Settings -->
+    <div id="page-budgets" class="page">
+      <h1 class="page-title">Limites Mensais</h1>
+      <div class="card" style="margin-bottom: 24px;">
+        <div class="budget-form">
+          <div class="form-group">
+            <label for="budget-category">Categoria (Despesa)</label>
+            <select id="budget-category"></select>
+          </div>
+          <div class="form-group">
+            <label for="budget-limit">Limite (R$)</label>
+            <input type="text" id="budget-limit" inputmode="decimal" placeholder="0,00">
+          </div>
+          <button class="btn btn-primary" onclick="saveBudget()">Salvar Limite</button>
+        </div>
+      </div>
+      <div id="budgets-list"></div>
+    </div>
+
     <div id="page-settings" class="page">
       <h1 class="page-title">Configuracoes</h1>
       <div class="settings-list">
@@ -596,22 +651,20 @@ html, body {
     </div>
   </div>
 
-  <!-- Bottom bar (mobile) -->
   <nav class="bottom-bar">
     <div class="bottom-bar-inner">
       <button data-page="dashboard" class="active"><span class="nav-icon">🏠</span>Inicio</button>
       <button data-page="transactions"><span class="nav-icon">📋</span>Transacoes</button>
       <button data-page="add"><span class="nav-icon">➕</span>Adicionar</button>
       <button data-page="charts"><span class="nav-icon">📊</span>Graficos</button>
+      <button data-page="budgets"><span class="nav-icon">🎯</span>Limites</button>
       <button data-page="settings"><span class="nav-icon">⚙️</span>Config</button>
     </div>
   </nav>
 
-  <!-- FAB (mobile) -->
   <button class="fab" onclick="navigateTo('add')">+</button>
 </div>
 
-<!-- Modal -->
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
     <h3 id="modal-title">Confirmar</h3>
@@ -623,7 +676,6 @@ html, body {
   </div>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
@@ -646,6 +698,8 @@ db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
 
 let currentUser = null;
 let unsubscribeSnapshot = null;
+let budgets = {};
+let unsubscribeBudgets = null;
 
 // ===== DATA =====
 const CATEGORIES = {
@@ -695,6 +749,7 @@ function loginWithGoogle() {
 function logout() {
   showModal('Sair da conta', 'Deseja sair? Seus dados continuam salvos na nuvem.', () => {
     if (unsubscribeSnapshot) unsubscribeSnapshot();
+    if (unsubscribeBudgets) unsubscribeBudgets();
     auth.signOut();
   });
 }
@@ -717,6 +772,7 @@ auth.onAuthStateChanged(user => {
 
     // Start listening to Firestore
     listenToTransactions();
+    listenToBudgets();
     init();
   } else {
     currentUser = null;
@@ -726,6 +782,10 @@ auth.onAuthStateChanged(user => {
     if (unsubscribeSnapshot) {
       unsubscribeSnapshot();
       unsubscribeSnapshot = null;
+    }
+    if (unsubscribeBudgets) {
+      unsubscribeBudgets();
+      unsubscribeBudgets = null;
     }
   }
 });
@@ -757,9 +817,22 @@ function listenToTransactions() {
       renderTransactions();
       const chartsPage = document.getElementById('page-charts');
       if (chartsPage.classList.contains('active')) renderCharts();
+      
+      const budgetsPage = document.getElementById('page-budgets');
+      if (budgetsPage && budgetsPage.classList.contains('active')) renderBudgets();
     }, err => {
       badge.textContent = 'Offline';
       badge.classList.add('offline');
+    });
+}
+
+function listenToBudgets() {
+  if (unsubscribeBudgets) unsubscribeBudgets();
+  unsubscribeBudgets = db.collection('users').doc(currentUser.uid).collection('settings').doc('budgets')
+    .onSnapshot(doc => {
+      budgets = doc.exists ? doc.data() : {};
+      const page = document.getElementById('page-budgets');
+      if (page && page.classList.contains('active')) renderBudgets();
     });
 }
 
@@ -847,6 +920,7 @@ function navigateTo(page) {
   if (page === 'transactions') renderTransactions();
   if (page === 'charts') renderCharts();
   if (page === 'add') updateCategorySelect();
+  if (page === 'budgets') renderBudgets();
 }
 
 document.querySelectorAll('[data-page]').forEach(btn => {
@@ -877,18 +951,23 @@ function addTransaction() {
     showToast('Informe um valor valido', 'error');
     return;
   }
+  
+  const account = document.getElementById('tx-account').value;
   const category = document.getElementById('tx-category').value;
   const date = document.getElementById('tx-date').value;
+  
   if (!date) {
     showToast('Selecione uma data', 'error');
     return;
   }
+  
   const note = document.getElementById('tx-note').value.trim();
 
   const tx = {
     type: currentType,
     value: value,
     category: category,
+    account: account,
     date: date,
     note: note,
     createdAt: new Date().toISOString()
@@ -923,10 +1002,16 @@ function updateDashboard() {
   const allExpense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.value, 0);
   const balance = allIncome - allExpense;
 
+  const vrBalance = transactions.filter(t => t.account === 'vr').reduce((s, t) => t.type === 'income' ? s + t.value : s - t.value, 0);
+  const vaBalance = transactions.filter(t => t.account === 'va').reduce((s, t) => t.type === 'income' ? s + t.value : s - t.value, 0);
+
   document.getElementById('val-balance').textContent = (balance < 0 ? '- ' : '') + formatCurrency(balance);
   document.getElementById('val-income').textContent = formatCurrency(totalIncome);
   document.getElementById('val-expense').textContent = formatCurrency(totalExpense);
   document.getElementById('card-balance').classList.toggle('negative', balance < 0);
+  
+  document.getElementById('val-vr').textContent = formatCurrency(vrBalance);
+  document.getElementById('val-va').textContent = formatCurrency(vaBalance);
 
   const recent = transactions.slice(0, 5);
   const container = document.getElementById('recent-tx');
@@ -945,12 +1030,15 @@ function updateDashboard() {
 function txItemHTML(tx) {
   const cat = getCategoryObj(tx.category);
   const sign = tx.type === 'income' ? '+' : '-';
+  const accNames = { 'corrente': 'C. Corrente', 'vr': 'VR', 'va': 'VA', 'dinheiro': 'Dinheiro' };
+  const accName = accNames[tx.account] || 'Corrente';
+  
   return `
     <div class="tx-item">
       <div class="tx-icon ${tx.type}">${cat.icon}</div>
       <div class="tx-info">
         <div class="tx-cat">${cat.name}</div>
-        <div class="tx-meta">${formatDate(tx.date)}${tx.note ? ' · ' + tx.note : ''}</div>
+        <div class="tx-meta">${formatDate(tx.date)} · ${accName}${tx.note ? ' · ' + tx.note : ''}</div>
       </div>
       <div class="tx-amount ${tx.type}">${sign} ${formatCurrency(tx.value)}</div>
       <button class="tx-delete" onclick="deleteTx('${tx.id}')" title="Excluir">✕</button>
@@ -983,11 +1071,13 @@ function renderTransactions() {
   const fMonth = document.getElementById('filter-month').value;
   const fType = document.getElementById('filter-type').value;
   const fCat = document.getElementById('filter-category').value;
+  const fAccount = document.getElementById('filter-account').value;
 
   let list = transactions;
   if (fMonth) list = list.filter(t => getMonthKey(t.date) === fMonth);
   if (fType) list = list.filter(t => t.type === fType);
   if (fCat) list = list.filter(t => t.category === fCat);
+  if (fAccount) list = list.filter(t => t.account === fAccount);
 
   const container = document.getElementById('tx-list');
   if (list.length === 0) {
@@ -1166,13 +1256,14 @@ function exportCSV() {
     return;
   }
   const BOM = '\uFEFF';
-  const header = 'Tipo;Data;Categoria;Valor;Observacao\n';
+  const header = 'Tipo;Data;Conta;Categoria;Valor;Observacao\n';
   const rows = transactions.map(t => {
     const cat = getCategoryObj(t.category);
     const tipo = t.type === 'income' ? 'Receita' : 'Despesa';
+    const acc = t.account || 'corrente';
     const valor = t.value.toFixed(2).replace('.', ',');
     const note = (t.note || '').replace(/;/g, ',');
-    return `${tipo};${formatDate(t.date)};${cat.name};${valor};${note}`;
+    return `${tipo};${formatDate(t.date)};${acc};${cat.name};${valor};${note}`;
   }).join('\n');
 
   const blob = new Blob([BOM + header + rows], { type: 'text/csv;charset=utf-8;' });
@@ -1203,6 +1294,80 @@ function confirmClearData() {
     }
   );
 }
+
+// ===== BUDGETS (LIMITES) =====
+function renderBudgets() {
+  const container = document.getElementById('budgets-list');
+  const catSelect = document.getElementById('budget-category');
+  
+  if(catSelect.options.length === 0) {
+    CATEGORIES.expense.forEach(c => {
+      catSelect.innerHTML += `<option value="${c.id}">${c.icon} ${c.name}</option>`;
+    });
+  }
+
+  const mk = currentMonthKey();
+  const monthExpenses = transactions.filter(t => t.type === 'expense' && getMonthKey(t.date) === mk);
+
+  if (Object.keys(budgets).length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🎯</div>
+        <div class="empty-text">Nenhum limite definido</div>
+        <div class="empty-sub">Crie limites para controlar seus gastos por categoria.</div>
+      </div>`;
+    return;
+  }
+
+  let html = '';
+  for (const [catId, limit] of Object.entries(budgets)) {
+    const cat = getCategoryObj(catId);
+    const spent = monthExpenses.filter(t => t.category === catId).reduce((s, t) => s + t.value, 0);
+    const percent = Math.min(100, (spent / limit) * 100);
+
+    let colorClass = 'bg-green';
+    if (percent >= 80) colorClass = 'bg-red';
+    else if (percent >= 50) colorClass = 'bg-yellow';
+
+    html += `
+      <div class="budget-item">
+        <div class="budget-header">
+          <span><strong>${cat.icon} ${cat.name}</strong></span>
+          <span>${formatCurrency(spent)} / ${formatCurrency(limit)}</span>
+        </div>
+        <div class="budget-bar-bg">
+          <div class="budget-bar-fill ${colorClass}" style="width: ${percent}%"></div>
+        </div>
+      </div>`;
+  }
+  container.innerHTML = html;
+}
+
+async function saveBudget() {
+  const catId = document.getElementById('budget-category').value;
+  const rawVal = document.getElementById('budget-limit').value.trim().replace(/\./g, '').replace(',', '.');
+  const limit = parseFloat(rawVal);
+
+  if (isNaN(limit) || limit <= 0) {
+    showToast('Informe um limite válido maior que zero', 'error');
+    return;
+  }
+
+  const newBudgets = { ...budgets, [catId]: limit };
+
+  try {
+    await db.collection('users').doc(currentUser.uid).collection('settings').doc('budgets').set(newBudgets, { merge: true });
+    showToast('Limite atualizado!');
+    document.getElementById('budget-limit').value = '';
+  } catch(e) {
+    showToast('Erro ao salvar limite', 'error');
+  }
+}
+
+// Máscara para o input de limites
+document.getElementById('budget-limit').addEventListener('input', function(e) {
+  this.value = this.value.replace(/[^\d,\.]/g, '');
+});
 
 // ===== INIT =====
 function init() {
