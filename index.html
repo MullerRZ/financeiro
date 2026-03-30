@@ -304,27 +304,16 @@ html, body {
   transition: all var(--transition); flex-shrink: 0;
 }
 .tx-delete:hover { background: rgba(233,69,96,0.15); color: var(--expense); }
-// ===== DELETE =====
-function deleteTx(id) {
-  const tx = transactions.find(t => t.id === id);
-  if (!tx) return;
-  const cat = getCategoryObj(tx.category);
-  showModal(
-    'Excluir Transacao',
-    `Deseja excluir "${cat.name} - ${formatCurrency(tx.value)}" de ${formatDate(tx.date)}?`,
-    () => {
-      deleteTransaction(id).then(() => {
-        showToast('Transacao excluida');
-      }).catch(err => {
-        showToast('Erro ao excluir: ' + err.message, 'error');
-      });
-    }
-  );
-}
-/* Charts */
+
+/* Charts - FIXED STYLING */
 .charts-grid { display: flex; flex-direction: column; gap: 24px; }
-.chart-container { position: relative; width: 100%; }
-.chart-container canvas { width: 100% !important; }
+.chart-container { 
+  position: relative; 
+  width: 100%; 
+  height: 280px; /* Altura fixa para evitar distorção */
+  display: flex;
+  justify-content: center;
+}
 
 /* Settings */
 .settings-list { display: flex; flex-direction: column; gap: 12px; }
@@ -618,19 +607,19 @@ function deleteTx(id) {
       <div class="charts-grid">
         <div class="card">
           <h3 style="margin-bottom:16px">Gastos por Categoria (mes atual)</h3>
-          <div class="chart-container" style="max-height:320px;display:flex;justify-content:center;">
+          <div class="chart-container">
             <canvas id="chart-donut"></canvas>
           </div>
         </div>
         <div class="card">
           <h3 style="margin-bottom:16px">Receitas vs Despesas (ultimos 6 meses)</h3>
-          <div class="chart-container" style="max-height:320px">
+          <div class="chart-container">
             <canvas id="chart-bar"></canvas>
           </div>
         </div>
         <div class="card">
           <h3 style="margin-bottom:16px">Evolucao do Saldo</h3>
-          <div class="chart-container" style="max-height:320px">
+          <div class="chart-container">
             <canvas id="chart-line"></canvas>
           </div>
         </div>
@@ -912,7 +901,7 @@ function listenToSettings() {
          baseSalaryInput.value = userSettings.baseSalary.toFixed(2).replace('.', ',');
       }
 
-      updateDashboard(); // To update the new salary performance card
+      updateDashboard(); 
       const page = document.getElementById('page-budgets');
       if (page && page.classList.contains('active')) renderBudgets();
     });
@@ -1118,7 +1107,6 @@ function updateDashboard() {
 
   // Dash Salarial
   const baseSalary = userSettings.baseSalary || 0;
-  // Exclui VR das despesas pra calcular o consumo real do salário
   const salaryExpenses = monthTx.filter(t => t.type === 'expense' && t.account !== 'vr').reduce((s, t) => s + t.value, 0);
   
   const dashHeader = document.getElementById('dash-salary-header');
@@ -1220,6 +1208,24 @@ function renderTransactions() {
   }
 }
 
+// ===== DELETE =====
+function deleteTx(id) {
+  const tx = transactions.find(t => t.id === id);
+  if (!tx) return;
+  const cat = getCategoryObj(tx.category);
+  showModal(
+    'Excluir Transacao',
+    `Deseja excluir "${cat.name} - ${formatCurrency(tx.value)}" de ${formatDate(tx.date)}?`,
+    () => {
+      deleteTransaction(id).then(() => {
+        showToast('Transacao excluida');
+      }).catch(err => {
+        showToast('Erro ao excluir: ' + err.message, 'error');
+      });
+    }
+  );
+}
+
 // ===== CHARTS =====
 function renderCharts() {
   renderDonutChart();
@@ -1249,18 +1255,34 @@ function renderDonutChart() {
     chartDonut = new Chart(document.getElementById('chart-donut'), {
       type: 'doughnut',
       data: { labels: ['Sem dados'], datasets: [{ data: [1], backgroundColor: ['#2a3a5c'] }] },
-      options: { plugins: { legend: { display: false }, tooltip: { enabled: false } }, cutout: '65%' }
+      options: { 
+        responsive: true,
+        maintainAspectRatio: false, // <-- CORREÇÃO DA RESOLUÇÃO
+        plugins: { legend: { display: false }, tooltip: { enabled: false } }, 
+        cutout: '70%' 
+      }
     });
     return;
   }
 
   chartDonut = new Chart(document.getElementById('chart-donut'), {
     type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }] },
+    data: { 
+      labels, 
+      datasets: [{ 
+        data, 
+        backgroundColor: colors, 
+        borderWidth: 4,               // <-- ESTÉTICA: Borda mais grossa
+        borderColor: '#1e2a47',       // <-- ESTÉTICA: Cor da borda igual ao card
+        hoverOffset: 12               // <-- ESTÉTICA: Efeito de clique maior
+      }] 
+    },
     options: {
-      responsive: true, maintainAspectRatio: true, cutout: '65%',
+      responsive: true, 
+      maintainAspectRatio: false,     // <-- CORREÇÃO DA RESOLUÇÃO
+      cutout: '70%',
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#a0a0b8', padding: 12, usePointStyle: true, pointStyleWidth: 10, font: { size: 12 } } },
+        legend: { position: 'bottom', labels: { color: '#a0a0b8', padding: 16, usePointStyle: true, pointStyleWidth: 10, font: { size: 12 } } },
         tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${formatCurrency(ctx.parsed)}` } }
       }
     }
@@ -1288,14 +1310,15 @@ function renderBarChart() {
     data: {
       labels,
       datasets: [
-        { label: 'Receitas', data: incomeData, backgroundColor: 'rgba(0,184,148,0.7)', borderRadius: 6, barPercentage: 0.7 },
-        { label: 'Despesas', data: expenseData, backgroundColor: 'rgba(233,69,96,0.7)', borderRadius: 6, barPercentage: 0.7 },
+        { label: 'Receitas', data: incomeData, backgroundColor: 'rgba(0,184,148,0.85)', borderRadius: 6, barPercentage: 0.6 },
+        { label: 'Despesas', data: expenseData, backgroundColor: 'rgba(233,69,96,0.85)', borderRadius: 6, barPercentage: 0.6 },
       ]
     },
     options: {
-      responsive: true, maintainAspectRatio: true,
+      responsive: true, 
+      maintainAspectRatio: false, // <-- CORREÇÃO DA RESOLUÇÃO
       plugins: {
-        legend: { labels: { color: '#a0a0b8', usePointStyle: true, pointStyleWidth: 10 } },
+        legend: { labels: { color: '#a0a0b8', usePointStyle: true, pointStyleWidth: 10, padding: 16 } },
         tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } }
       },
       scales: {
@@ -1312,7 +1335,12 @@ function renderLineChart() {
     chartLine = new Chart(document.getElementById('chart-line'), {
       type: 'line',
       data: { labels: ['Sem dados'], datasets: [{ data: [0], borderColor: '#2a3a5c' }] },
-      options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false, 
+        plugins: { legend: { display: false } }, 
+        scales: { x: { display: false }, y: { display: false } } 
+      }
     });
     return;
   }
@@ -1341,13 +1369,18 @@ function renderLineChart() {
       labels,
       datasets: [{
         label: 'Saldo', data,
-        borderColor: '#00b894', backgroundColor: 'rgba(0,184,148,0.1)',
-        fill: true, tension: 0.3,
-        pointRadius: data.length > 30 ? 0 : 3, pointHoverRadius: 6, borderWidth: 2,
+        borderColor: '#00b894', 
+        backgroundColor: 'rgba(0,184,148,0.15)',
+        fill: true, 
+        tension: 0.4, // <-- ESTÉTICA: Curva mais suave
+        pointRadius: data.length > 30 ? 0 : 4, 
+        pointHoverRadius: 6, 
+        borderWidth: 3,
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: true,
+      responsive: true, 
+      maintainAspectRatio: false, // <-- CORREÇÃO DA RESOLUÇÃO
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: { label: ctx => ` Saldo: ${formatCurrency(ctx.parsed.y)}` } }
@@ -1454,7 +1487,6 @@ function renderBudgets() {
     return;
   }
 
-  // Resumo de Alocação
   const totalAllocatedPct = Object.values(percents).reduce((a,b) => a+b, 0);
   const totalAllocatedRs = (baseSalary * totalAllocatedPct) / 100;
   
@@ -1468,7 +1500,6 @@ function renderBudgets() {
   if(totalAllocatedPct > 100) pctEl.classList.add('danger');
   else if(totalAllocatedPct === 100) pctEl.classList.add('warning');
 
-  // Ignora o VR para não bater na cota do Salário
   const mk = currentMonthKey();
   const monthExpenses = transactions.filter(t => t.type === 'expense' && getMonthKey(t.date) === mk && t.account !== 'vr');
 
