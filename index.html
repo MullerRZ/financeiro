@@ -416,13 +416,26 @@ html, body {
   padding: 6px 12px; background: var(--bg-input); border: 1px solid var(--border);
   border-radius: 20px; font-size: 0.85rem; color: var(--text-primary);
 }
-.cat-tag .cat-tag-del {
+.cat-tag .cat-tag-btn {
   background: none; border: none; color: var(--text-muted); cursor: pointer;
-  font-size: 1rem; padding: 0 2px; line-height: 1; transition: color var(--transition);
+  font-size: 0.9rem; padding: 0 2px; line-height: 1; transition: color var(--transition);
 }
-.cat-tag .cat-tag-del:hover { color: var(--expense); }
+.cat-tag .cat-tag-btn.del:hover { color: var(--expense); }
+.cat-tag .cat-tag-btn.edit:hover { color: var(--income); }
 .cat-tag.income-tag { border-color: rgba(0,184,148,0.3); background: rgba(0,184,148,0.08); }
 .cat-tag.expense-tag { border-color: rgba(233,69,96,0.3); background: rgba(233,69,96,0.08); }
+
+/* Category edit inline form */
+.cat-edit-form {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 12px; background: var(--bg-card); border: 1px solid var(--income);
+  border-radius: var(--radius-sm); margin-top: 10px; animation: fadeIn 0.2s ease;
+}
+.cat-edit-form input, .cat-edit-form select {
+  padding: 6px 10px; background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.9rem; font-family: inherit;
+}
+.cat-edit-form input:focus { outline: none; border-color: var(--income); }
 
 /* Transaction summary bar */
 .tx-summary-bar {
@@ -862,7 +875,7 @@ db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
 
 let currentUser = null;
 let unsubscribeSnapshot = null;
-let userSettings = { baseSalary: 0, vrLimit: 0, budgetPercents: {}, customCategories: { expense: [], income: [] }, hiddenCategories: [] };
+let userSettings = { baseSalary: 0, vrLimit: 0, budgetPercents: {}, customCategories: { expense: [], income: [] }, hiddenCategories: [], categoryOverrides: {} };
 let unsubscribeSettings = null;
 let snapshotDebounce = null;
 let isFormDirty = false;
@@ -977,8 +990,9 @@ function listenToSettings() {
         if(!userSettings.vrLimit) userSettings.vrLimit = 0;
         if(!userSettings.customCategories) userSettings.customCategories = { expense: [], income: [] };
         if(!userSettings.hiddenCategories) userSettings.hiddenCategories = [];
+        if(!userSettings.categoryOverrides) userSettings.categoryOverrides = {};
       } else {
-        userSettings = { baseSalary: 0, vrLimit: 0, budgetPercents: {}, customCategories: { expense: [], income: [] }, hiddenCategories: [] };
+        userSettings = { baseSalary: 0, vrLimit: 0, budgetPercents: {}, customCategories: { expense: [], income: [] }, hiddenCategories: [], categoryOverrides: {} };
       }
       renderCustomCategories();
       
@@ -1026,9 +1040,14 @@ function getPreviousMonthKey(mk) {
     if(nm === 0) { nm = 12; ny--; }
     return ny + '-' + String(nm).padStart(2, '0');
 }
+function applyOverride(cat) {
+  const ovr = (userSettings.categoryOverrides || {})[cat.id];
+  if (!ovr) return cat;
+  return { ...cat, name: ovr.name || cat.name, icon: ovr.icon || cat.icon };
+}
 function getAllCategories(type) {
   const hidden = userSettings.hiddenCategories || [];
-  const defaults = CATEGORIES[type].filter(c => !hidden.includes(c.id));
+  const defaults = CATEGORIES[type].filter(c => !hidden.includes(c.id)).map(applyOverride);
   const custom = (userSettings.customCategories && userSettings.customCategories[type]) || [];
   return [...defaults, ...custom];
 }
@@ -1037,16 +1056,31 @@ function getCategoryObj(id) {
     const found = getAllCategories(type).find(c => c.id === id);
     if (found) return found;
   }
+  // Also check hidden defaults (for old transactions with hidden categories)
+  for (const type of ['expense', 'income']) {
+    const found = CATEGORIES[type].find(c => c.id === id);
+    if (found) return applyOverride(found);
+  }
   return { id, name: id, icon: '❓' };
 }
+function hashStringToColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+  const h = ((hash % 360) + 360) % 360;
+  return `hsl(${h}, 65%, 55%)`;
+}
 function getCategoryColor(catId) {
-  // Check custom categories first (user overrides)
+  // Check overrides for default categories
+  const ovr = (userSettings.categoryOverrides || {})[catId];
+  if (ovr?.color) return ovr.color;
+  // Check custom categories
   const allCustom = [...(userSettings.customCategories?.expense || []), ...(userSettings.customCategories?.income || [])];
   const custom = allCustom.find(c => c.id === catId);
   if (custom?.color) return custom.color;
   // Fallback to defaults
   if (DEFAULT_CATEGORY_COLORS[catId]) return DEFAULT_CATEGORY_COLORS[catId];
-  return '#636e72';
+  // Generate unique color from ID instead of static gray
+  return hashStringToColor(catId);
 }
 function today() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function currentMonthKey() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
@@ -1374,85 +1408,97 @@ function renderInstallmentsGrouped() {
   loadMore.style.display = 'none';
 
   const installments = txFilteredList.filter(isInstallmentTx);
-
-  if (installments.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔄</div><div class="empty-text">Nenhuma parcela encontrada</div><div class="empty-sub">Transações parceladas aparecerão aqui agrupadas por categoria.</div></div>`;
-    return;
-  }
-
-  // Group by category
-  const groups = {};
-  installments.forEach(tx => {
-    if (!groups[tx.category]) groups[tx.category] = { type: tx.type, txs: [] };
-    groups[tx.category].txs.push(tx);
-  });
-
-  // Sort by total value desc
-  const sorted = Object.entries(groups).sort((a, b) => {
-    const totalA = a[1].txs.reduce((s, t) => s + t.value, 0);
-    const totalB = b[1].txs.reduce((s, t) => s + t.value, 0);
-    return totalB - totalA;
-  });
+  const nonInstallments = txFilteredList.filter(t => !isInstallmentTx(t));
 
   let html = '';
-  sorted.forEach(([catId, group], idx) => {
-    const cat = getCategoryObj(catId);
-    const total = group.txs.reduce((s, t) => s + t.value, 0);
-    const count = group.txs.length;
-    const mainType = group.txs.filter(t => t.type === 'expense').length >= group.txs.filter(t => t.type === 'income').length ? 'expense' : 'income';
 
-    // Sub-group by base name within category
-    const byName = {};
-    group.txs.forEach(tx => {
-      const base = getInstallmentBaseName(tx) || cat.name;
-      if (!byName[base]) byName[base] = [];
-      byName[base].push(tx);
+  // ---- SECTION 1: Installments grouped ----
+  if (installments.length > 0) {
+    html += `<div style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:10px;font-weight:600;">🔄 Parcelas Agrupadas</div>`;
+
+    // Group by category
+    const groups = {};
+    installments.forEach(tx => {
+      if (!groups[tx.category]) groups[tx.category] = { txs: [] };
+      groups[tx.category].txs.push(tx);
     });
 
-    const subGroups = Object.entries(byName).sort((a, b) => {
-      const tA = a[1].reduce((s, t) => s + t.value, 0);
-      const tB = b[1].reduce((s, t) => s + t.value, 0);
-      return tB - tA;
+    const sorted = Object.entries(groups).sort((a, b) => {
+      const totalA = a[1].txs.reduce((s, t) => s + t.value, 0);
+      const totalB = b[1].txs.reduce((s, t) => s + t.value, 0);
+      return totalB - totalA;
     });
 
-    html += `
-      <div class="installment-group">
-        <div class="installment-group-header">
-          <div class="ig-left">
-            <div class="ig-icon ${mainType}">${cat.icon}</div>
-            <div>
-              <div class="ig-name">${cat.name}</div>
-              <div class="ig-count">${count} parcela${count > 1 ? 's' : ''}${subGroups.length > 1 ? ' · ' + subGroups.length + ' itens' : ''}</div>
+    sorted.forEach(([catId, group], idx) => {
+      const cat = getCategoryObj(catId);
+      const total = group.txs.reduce((s, t) => s + t.value, 0);
+      const count = group.txs.length;
+      const mainType = group.txs.filter(t => t.type === 'expense').length >= group.txs.filter(t => t.type === 'income').length ? 'expense' : 'income';
+      const sign = mainType === 'expense' ? '-' : '+';
+
+      // Sub-group by base name within category
+      const byName = {};
+      group.txs.forEach(tx => {
+        const base = getInstallmentBaseName(tx) || cat.name;
+        if (!byName[base]) byName[base] = [];
+        byName[base].push(tx);
+      });
+
+      const subGroups = Object.entries(byName).sort((a, b) => {
+        const tA = a[1].reduce((s, t) => s + t.value, 0);
+        const tB = b[1].reduce((s, t) => s + t.value, 0);
+        return tB - tA;
+      });
+
+      html += `
+        <div class="installment-group">
+          <div class="installment-group-header">
+            <div class="ig-left">
+              <div class="ig-icon ${mainType}">${cat.icon}</div>
+              <div>
+                <div class="ig-name">${cat.name}</div>
+                <div class="ig-count">${count} parcela${count > 1 ? 's' : ''}${subGroups.length > 1 ? ' · ' + subGroups.length + ' itens' : ''}</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ig-total ${mainType}">${sign} ${formatCurrency(total)}</span>
+              <button class="ig-toggle" id="ig-btn-${idx}" onclick="toggleInstallmentGroup(${idx})">▼ Detalhes</button>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span class="ig-total ${mainType}">- ${formatCurrency(total)}</span>
-            <button class="ig-toggle" id="ig-btn-${idx}" onclick="toggleInstallmentGroup(${idx})">▼ Detalhes</button>
+          <div class="installment-group-details" id="ig-details-${idx}">
+            ${subGroups.map(([baseName, txs]) => {
+              const subTotal = txs.reduce((s, t) => s + t.value, 0);
+              const label = baseName || cat.name;
+              return `
+                <div style="margin-bottom: 10px;">
+                  ${subGroups.length > 1 ? `<div style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;display:flex;justify-content:space-between;">
+                    <span>${label}</span>
+                    <span style="color:var(--${mainType});">${sign} ${formatCurrency(subTotal)} (${txs.length}x)</span>
+                  </div>` : ''}
+                  ${txs.sort((a, b) => a.date.localeCompare(b.date)).map(tx => txItemHTML(tx)).join('')}
+                </div>`;
+            }).join('')}
           </div>
-        </div>
-        <div class="installment-group-details" id="ig-details-${idx}">
-          ${subGroups.map(([baseName, txs]) => {
-            const subTotal = txs.reduce((s, t) => s + t.value, 0);
-            const label = baseName || cat.name;
-            return `
-              <div style="margin-bottom: 10px;">
-                ${subGroups.length > 1 ? `<div style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;display:flex;justify-content:space-between;">
-                  <span>${label}</span>
-                  <span style="color:var(--expense);">- ${formatCurrency(subTotal)} (${txs.length}x)</span>
-                </div>` : ''}
-                ${txs.sort((a, b) => a.date.localeCompare(b.date)).map(tx => txItemHTML(tx)).join('')}
-              </div>`;
-          }).join('')}
-        </div>
-      </div>`;
-  });
+        </div>`;
+    });
 
-  // Grand total
-  const grandTotal = installments.reduce((s, t) => s + (t.type === 'expense' ? t.value : -t.value), 0);
-  html += `<div style="text-align:center; padding:14px; margin-top:8px; background:var(--bg-card); border-radius:var(--radius-sm); border:1px solid var(--border);">
-    <span style="color:var(--text-secondary);font-size:0.85rem;">Total comprometido em parcelas:</span>
-    <strong style="color:var(--expense); font-size:1.1rem; margin-left:8px;">- ${formatCurrency(Math.abs(grandTotal))}</strong>
-  </div>`;
+    // Parcelas total
+    const grandTotal = installments.reduce((s, t) => s + (t.type === 'expense' ? t.value : -t.value), 0);
+    html += `<div style="text-align:center; padding:12px; margin-bottom:20px; background:var(--bg-card); border-radius:var(--radius-sm); border:1px solid var(--border);">
+      <span style="color:var(--text-secondary);font-size:0.85rem;">Total em parcelas:</span>
+      <strong style="color:var(--expense); font-size:1.05rem; margin-left:8px;">- ${formatCurrency(Math.abs(grandTotal))}</strong>
+    </div>`;
+  }
+
+  // ---- SECTION 2: Non-installment transactions ----
+  if (nonInstallments.length > 0) {
+    html += `<div style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:10px;font-weight:600;">📋 Transações Avulsas</div>`;
+    html += nonInstallments.map(tx => txItemHTML(tx)).join('');
+  }
+
+  if (installments.length === 0 && nonInstallments.length === 0) {
+    html = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">Nada encontrado</div><div class="empty-sub">Ajuste os filtros ou o termo buscado.</div></div>`;
+  }
 
   container.innerHTML = html;
 }
@@ -2009,6 +2055,8 @@ function renderBudgets() {
 // ===== CUSTOM CATEGORIES =====
 const CUSTOM_COLOR_PALETTE = ['#e056fd','#7ed6df','#f9ca24','#eb4d4b','#30336b','#22a6b3','#be2edd','#c7ecee','#f0932b','#6ab04c','#686de0','#ffbe76'];
 
+let editingCatId = null;
+
 function renderCustomCategories() {
   const expContainer = document.getElementById('cats-expense-list');
   const incContainer = document.getElementById('cats-income-list');
@@ -2029,20 +2077,33 @@ function renderCustomCategories() {
       ? `removeCustomCategory('${cat.id}','${type}')`
       : `hideDefaultCategory('${cat.id}')`;
     const removeTitle = custom ? 'Remover' : 'Ocultar';
-    return `<span class="cat-tag ${type}-tag" style="border-left: 3px solid ${color};">
+    const isEditing = editingCatId === cat.id;
+    let tagHTML = `<span class="cat-tag ${type}-tag" style="border-left: 3px solid ${color};">
       ${cat.icon} ${cat.name}
-      <button class="cat-tag-del" onclick="${removeAction}" title="${removeTitle}">✕</button>
+      <button class="cat-tag-btn edit" onclick="openEditCategory('${cat.id}','${type}')" title="Editar">✎</button>
+      <button class="cat-tag-btn del" onclick="${removeAction}" title="${removeTitle}">✕</button>
     </span>`;
+    if (isEditing) {
+      tagHTML += `
+        <div class="cat-edit-form" id="cat-edit-form">
+          <input type="text" id="edit-cat-icon" value="${cat.icon}" style="width:50px;text-align:center;font-size:1.1rem;" placeholder="🎵">
+          <input type="text" id="edit-cat-name" value="${cat.name}" style="flex:1;min-width:100px;" placeholder="Nome">
+          <input type="color" id="edit-cat-color" value="${color}" style="width:40px;height:32px;padding:2px;cursor:pointer;border-radius:4px;">
+          <button class="btn btn-primary" style="padding:6px 14px;font-size:0.85rem;" onclick="saveEditCategory('${cat.id}','${type}')">Salvar</button>
+          <button class="btn btn-secondary" style="padding:6px 14px;font-size:0.85rem;" onclick="cancelEditCategory()">Cancelar</button>
+        </div>`;
+    }
+    return tagHTML;
   }
 
   // Active expense categories
-  const activeExp = [...CATEGORIES.expense.filter(c => !hidden.includes(c.id)), ...customExp];
+  const activeExp = [...CATEGORIES.expense.filter(c => !hidden.includes(c.id)).map(applyOverride), ...customExp];
   expContainer.innerHTML = activeExp.length > 0
     ? activeExp.map(c => renderTag(c, 'expense')).join('')
     : '<span style="color:var(--text-muted);font-size:0.85rem;">Nenhuma categoria de despesa ativa.</span>';
 
   // Active income categories
-  const activeInc = [...CATEGORIES.income.filter(c => !hidden.includes(c.id)), ...customInc];
+  const activeInc = [...CATEGORIES.income.filter(c => !hidden.includes(c.id)).map(applyOverride), ...customInc];
   incContainer.innerHTML = activeInc.length > 0
     ? activeInc.map(c => renderTag(c, 'income')).join('')
     : '<span style="color:var(--text-muted);font-size:0.85rem;">Nenhuma categoria de receita ativa.</span>';
@@ -2058,6 +2119,52 @@ function renderCustomCategories() {
     `).join('');
   } else {
     hiddenSection.style.display = 'none';
+  }
+}
+
+function openEditCategory(catId, type) {
+  editingCatId = catId;
+  renderCustomCategories();
+  // Focus name input after render
+  setTimeout(() => { const el = document.getElementById('edit-cat-name'); if(el) el.focus(); }, 50);
+}
+
+function cancelEditCategory() {
+  editingCatId = null;
+  renderCustomCategories();
+}
+
+async function saveEditCategory(catId, type) {
+  const newIcon = document.getElementById('edit-cat-icon').value.trim() || '📌';
+  const newName = document.getElementById('edit-cat-name').value.trim();
+  const newColor = document.getElementById('edit-cat-color').value;
+  if (!newName) { showToast('Nome não pode ser vazio', 'error'); return; }
+
+  const isCustom = catId.startsWith('custom_');
+
+  if (isCustom) {
+    // Update custom category in place
+    const updated = { ...userSettings.customCategories };
+    updated[type] = (updated[type] || []).map(c =>
+      c.id === catId ? { ...c, name: newName, icon: newIcon, color: newColor } : c
+    );
+    try {
+      await db.collection('users').doc(currentUser.uid).collection('settings').doc('finances')
+        .set({ ...userSettings, customCategories: updated }, { merge: true });
+      editingCatId = null;
+      showToast('Categoria atualizada!');
+    } catch(e) { showToast('Erro ao salvar', 'error'); }
+  } else {
+    // For default categories: store override as a custom category with same ID
+    // We save it as a "customization" — an override entry
+    const overrides = userSettings.categoryOverrides || {};
+    overrides[catId] = { name: newName, icon: newIcon, color: newColor };
+    try {
+      await db.collection('users').doc(currentUser.uid).collection('settings').doc('finances')
+        .set({ ...userSettings, categoryOverrides: overrides }, { merge: true });
+      editingCatId = null;
+      showToast('Categoria atualizada!');
+    } catch(e) { showToast('Erro ao salvar', 'error'); }
   }
 }
 
