@@ -488,7 +488,7 @@ html, body {
   .sidebar { display: none; }
   .bottom-bar { display: block; }
   .fab { display: flex; }
-  .main { padding: 20px 16px calc(var(--bottom-bar) + 32px); }
+  .main { padding: 20px 16px calc(var(--bottom-bar) + 80px); }
   .page-title { font-size: 1.35rem; }
   .summary-card .value { font-size: 1.25rem; }
   .filters { flex-direction: column; }
@@ -1777,7 +1777,7 @@ function renderLineChart() {
         tooltip: { backgroundColor: 'rgba(22, 33, 62, 0.9)', padding: 12, cornerRadius: 8, callbacks: { label: ctx => ` Saldo Real: ${formatCurrency(ctx.parsed.y)}` } }
       },
       scales: {
-        x: { grid: { display: false }, ticks: { maxTicksLimit: 7, maxRotation: 0 } },
+        x: { grid: { display: false }, ticks: { maxTicksLimit: isMobile() ? 4 : 7, maxRotation: 0, callback: function(val, idx) { const label = this.getLabelForValue(val); if (isMobile()) { const parts = label.split('/'); return parts[0] + '/' + parts[1]; } return label; } } },
         y: { border: { display: false }, grid: { color: 'rgba(42, 58, 92, 0.5)' }, ticks: { padding: 10, callback: v => 'R$ ' + v } }
       }
     }
