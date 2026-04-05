@@ -488,7 +488,7 @@ html, body {
   .sidebar { display: none; }
   .bottom-bar { display: block; }
   .fab { display: flex; }
-  .main { padding: 20px 16px calc(var(--bottom-bar) + 16px); }
+  .main { padding: 20px 16px calc(var(--bottom-bar) + 32px); }
   .page-title { font-size: 1.35rem; }
   .summary-card .value { font-size: 1.25rem; }
   .filters { flex-direction: column; }
@@ -503,6 +503,10 @@ html, body {
   .tx-item { gap: 10px; padding: 12px; }
   .tx-amount { font-size: 0.9rem; }
   .modal { padding: 20px; width: 95%; }
+  .budget-header { flex-direction: column; gap: 6px; font-size: 0.9rem; }
+  .budget-header > span { width: 100%; justify-content: space-between; }
+  .budget-item { padding: 14px; }
+  .budget-item .over-label { font-size: 0.7rem; }
 }
 @media (min-width: 769px) { .fab { display: none; } }
 </style>
