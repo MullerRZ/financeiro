@@ -496,7 +496,7 @@ html, body {
   .budget-form { flex-direction: column; align-items: stretch; }
   .salary-summary { flex-direction: column; align-items: flex-start; gap: 12px; }
   .chart-summary-box { flex-direction: column; gap: 10px; text-align: center; }
-  .chart-container { height: 220px; }
+  .chart-container { height: 300px; }
   .tx-summary-bar { flex-direction: column; gap: 8px; }
   .installment-group-header { flex-direction: column; align-items: flex-start; gap: 8px; }
   .installment-group-header > div:last-child { align-self: flex-end; }
@@ -1620,6 +1620,7 @@ Chart.defaults.color = '#a0a0b8';
 Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 let chartMonthKey = currentMonthKey();
+const isMobile = () => window.innerWidth <= 768;
 
 function onChartMonthChange() {
   chartMonthKey = document.getElementById('chart-month-select').value || currentMonthKey();
@@ -1693,7 +1694,7 @@ function renderDonutChart() {
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '75%',
       plugins: {
-        legend: { position: 'right', labels: { padding: 20, usePointStyle: true, pointStyle: 'circle' } },
+        legend: { position: isMobile() ? 'bottom' : 'right', labels: { padding: 14, usePointStyle: true, pointStyle: 'circle', font: { size: isMobile() ? 11 : 12 } } },
         tooltip: { backgroundColor: 'rgba(22, 33, 62, 0.9)', titleFont: {size: 14}, bodyFont: {size: 14}, padding: 12, cornerRadius: 8, callbacks: { label: ctx => ` R$ ${ctx.parsed.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` } }
       }
     }
@@ -1854,10 +1855,12 @@ function renderTop5Chart() {
     return;
   }
 
+  const maxLen = isMobile() ? 22 : 40;
   const labels = monthExp.map(t => {
     const cat = getCategoryObj(t.category);
     const note = t.note ? ` (${t.note.substring(0, 20)})` : '';
-    return `${cat.icon} ${cat.name}${note}`;
+    const full = `${cat.icon} ${cat.name}${note}`;
+    return full.length > maxLen ? full.substring(0, maxLen) + '…' : full;
   });
   const data = monthExp.map(t => t.value);
   const colors = monthExp.map(t => getCategoryColor(t.category));
@@ -1904,7 +1907,7 @@ function renderIncomeDonutChart() {
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '75%',
       plugins: {
-        legend: { position: 'right', labels: { padding: 20, usePointStyle: true, pointStyle: 'circle' } },
+        legend: { position: isMobile() ? 'bottom' : 'right', labels: { padding: 14, usePointStyle: true, pointStyle: 'circle', font: { size: isMobile() ? 11 : 12 } } },
         tooltip: { backgroundColor: 'rgba(22, 33, 62, 0.9)', titleFont: {size: 14}, bodyFont: {size: 14}, padding: 12, cornerRadius: 8, callbacks: { label: ctx => ` R$ ${ctx.parsed.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` } }
       }
     }
