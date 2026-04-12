@@ -1023,8 +1023,8 @@ function listenToSettings() {
       if(userSettings.baseSalary > 0 && !bsInput.matches(':focus')) bsInput.value = userSettings.baseSalary.toFixed(2).replace('.', ',');
       if(userSettings.vrLimit > 0 && !vrInput.matches(':focus')) vrInput.value = userSettings.vrLimit.toFixed(2).replace('.', ',');
 
-      updateDashboard(); 
-      if (document.getElementById('page-budgets').classList.contains('active')) renderBudgets();
+      updateDashboard();
+      renderBudgets();
     });
 }
 
