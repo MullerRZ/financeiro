@@ -2023,10 +2023,9 @@ async function saveBudgetPercent() {
 function deleteBudgetSlice(catId) {
   const cat = getCategoryObj(catId);
   showModal('Remover Fatia', `Deseja remover a fatia de "${cat.icon} ${cat.name}" do seu orçamento?`, async () => {
-    const newPercents = { ...userSettings.budgetPercents };
-    delete newPercents[catId];
     try {
-      await db.collection('users').doc(currentUser.uid).collection('settings').doc('finances').set({ ...userSettings, budgetPercents: newPercents }, { merge: true });
+      await db.collection('users').doc(currentUser.uid).collection('settings').doc('finances')
+        .update({ [`budgetPercents.${catId}`]: firebase.firestore.FieldValue.delete() });
       showToast('Fatia removida!');
     } catch(e) { showToast('Erro ao remover', 'error'); }
   });
